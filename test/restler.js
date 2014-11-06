@@ -47,11 +47,13 @@ function echoResponse(request, response) {
   echo.push('', '');
   echo = echo.join('\r\n');
 
+  var body = []
   request.addListener('data', function(chunk) {
-    echo += chunk.toString('binary');
+    body.push(chunk);
   });
 
   request.addListener('end', function() {
+    echo += Buffer.concat(body).toString(request.headers['x-hexdump'] == "true" ? "hex" : "utf8")
     response.writeHead(request.headers['x-status-code'] || 200, {
       'content-type': 'text/plain',
       'content-length': echo.length,
@@ -150,6 +152,26 @@ module.exports['Basic'] = {
       test.re(data, /content-type\: application\/x-www-form-urlencoded/, 'should set content-type');
       test.re(data, /content-length\: 7/, 'should set content-length');
       test.re(data, /\r\n\r\nq=balls/, 'should have balls in the body');
+      test.done();
+    });
+  },
+
+  'Should send buffer POST body unmodified': function(test) {
+    var send = new Buffer(4);
+    send.writeUInt32BE(0xfeedface, 0);
+    rest.post(host, { data: send, headers: {'x-hexdump': 'true'} }).on('complete', function(data) {
+      test.re(data, /content-length\: 4/, 'should set content-length');
+      test.re(data, /\r\n\r\nfeedface/, 'should have feedface hexdump in the body');
+      test.done();
+    });
+  },
+
+  'Should send binary string POST body unmodified': function(test) {
+    var send = new Buffer(4);
+    send.writeUInt32BE(0xfeedface, 0);
+    rest.post(host, { data: send.toString("binary"), encoding: 'binary', headers: {'x-hexdump': 'true'} }).on('complete', function(data) {
+      test.re(data, /content-length\: 4/, 'should set content-length');
+      test.re(data, /\r\n\r\nfeedface/, 'should have feedface hexdump in the body');
       test.done();
     });
   },
